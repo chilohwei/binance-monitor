@@ -38,8 +38,8 @@ echo "<github_pat>" | docker login ghcr.io -u chilohwei --password-stdin
 cp .env.example .env
 # 编辑 .env
 
-IMAGE_TAG=v1.0.1 docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
-IMAGE_TAG=v1.0.1 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+IMAGE_TAG=1.0.1 docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+IMAGE_TAG=1.0.1 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
 生产 overlay 会额外接入外部网络 `edge-proxy`，用于：
@@ -136,7 +136,7 @@ npm test        # 运行测试
 
 - **平台**: `linux/amd64`, `linux/arm64`
 - **镜像**: `ghcr.io/<owner>/binance-monitor`
-- **标签**: `main`, `v1.0.1`, `v1.0`, `<commit-sha>`
+- **标签**: `main`, `1.0.1`, `1.0`, `<commit-sha>`
 - PR 仅构建不推送
 
 ## 管理命令
