@@ -1,3 +1,9 @@
+## 1.0.1 - 2026-04-02
+
+### Fixes
+- Fix Docker BuildKit npm cache collisions during remote image builds by using isolated locked cache mounts
+- Allow Binance Alpha API `volume24h` to be `null` so the monitor remains compatible with live API responses
+
 ## 1.0.0 - 2026-04-02
 
 ### Features

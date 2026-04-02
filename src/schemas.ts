@@ -52,7 +52,7 @@ export const alphaApiResponseSchema = z.object({
         onlineTge: z.boolean(),
         price: z.string(),
         marketCap: z.string(),
-        volume24h: z.string(),
+        volume24h: z.string().nullable(),
       })
       .passthrough(),
   ),

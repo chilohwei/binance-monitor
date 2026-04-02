@@ -36,7 +36,7 @@ export interface AlphaTokenApiItem {
   onlineTge: boolean;
   price: string;
   marketCap: string;
-  volume24h: string;
+  volume24h: string | null;
 }
 
 export interface AnnouncementData {

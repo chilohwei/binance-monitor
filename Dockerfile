@@ -4,7 +4,7 @@
 FROM --platform=$BUILDPLATFORM node:22-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci
+RUN --mount=type=cache,id=binance-monitor-npm-build,target=/root/.npm,sharing=locked npm ci
 COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
@@ -18,7 +18,7 @@ LABEL org.opencontainers.image.description="Binance announcement & Alpha token m
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm \
+RUN --mount=type=cache,id=binance-monitor-npm-runtime,target=/root/.npm,sharing=locked \
     npm ci --omit=dev && \
     npm cache clean --force
 
