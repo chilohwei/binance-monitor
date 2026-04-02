@@ -28,6 +28,24 @@ docker compose up -d
 docker compose logs -f
 ```
 
+### VPS / 生产部署（GHCR + NPM）
+
+```bash
+# 1. 登录 GHCR（私有镜像需要 read:packages）
+echo "<github_pat>" | docker login ghcr.io -u chilohwei --password-stdin
+
+# 2. 使用生产 overlay
+cp .env.example .env
+# 编辑 .env
+
+IMAGE_TAG=v1.0.1 docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+IMAGE_TAG=v1.0.1 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+生产 overlay 会额外接入外部网络 `edge-proxy`，用于：
+- `Nginx Proxy Manager` 反向代理
+- 容器间 `Origin` 健康检查
+
 ### 本地构建
 
 ```bash
@@ -118,7 +136,7 @@ npm test        # 运行测试
 
 - **平台**: `linux/amd64`, `linux/arm64`
 - **镜像**: `ghcr.io/<owner>/binance-monitor`
-- **标签**: `main`, `v1.0.0`, `v1.0`, `<commit-sha>`
+- **标签**: `main`, `v1.0.1`, `v1.0`, `<commit-sha>`
 - PR 仅构建不推送
 
 ## 管理命令

@@ -1,0 +1,10 @@
+services:
+  binance-monitor:
+    image: ghcr.io/chilohwei/binance-monitor:${IMAGE_TAG:-latest}
+    networks:
+      - default
+      - edge-proxy
+
+networks:
+  edge-proxy:
+    external: true
