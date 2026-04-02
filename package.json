@@ -1,0 +1,31 @@
+{
+  "name": "binance-monitor",
+  "version": "1.0.0",
+  "description": "Binance announcement & Alpha token monitor with Bark + Telegram push",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "test-push": "tsx src/test-push.ts",
+    "test": "node --import tsx/esm --test test/*.test.ts"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^17.4.0",
+    "pino": "^10.3.1",
+    "undici": "^7.24.7",
+    "ws": "^8.20.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
+  }
+}
