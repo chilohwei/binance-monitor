@@ -1,6 +1,6 @@
 {
   "name": "binance-monitor",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Binance announcement & Alpha token monitor with Bark + Telegram push",
   "type": "module",
   "main": "dist/index.js",

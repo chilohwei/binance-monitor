@@ -18,43 +18,33 @@
 ### 使用预构建镜像（推荐）
 
 ```bash
-# 拉取镜像（支持 amd64 / arm64）
-docker compose pull
-
 cp .env.example .env
 # 编辑 .env 填入真实密钥
 
-docker compose up -d
+IMAGE_TAG=1.0.2 docker compose pull
+IMAGE_TAG=1.0.2 docker compose up -d
 docker compose logs -f
 ```
 
+服务会直接拉取 GHCR 预构建镜像，不需要本地源码参与部署。
+
 ### VPS / 生产部署（GHCR + NPM）
+
+与 `bark` / `uptime` 等同机项目一致：`docker-compose.yml` 单文件内声明外部网络 `edge-proxy`，服务同时加入 `default` 与 `edge-proxy`。
 
 ```bash
 # 1. 登录 GHCR（私有镜像需要 read:packages）
 echo "<github_pat>" | docker login ghcr.io -u chilohwei --password-stdin
 
-# 2. 使用生产 overlay
+# 2. 仅保留 compose 文件和 .env 即可部署
 cp .env.example .env
 # 编辑 .env
 
-IMAGE_TAG=1.0.1 docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
-IMAGE_TAG=1.0.1 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+IMAGE_TAG=1.0.2 docker compose pull
+IMAGE_TAG=1.0.2 docker compose up -d
 ```
 
-生产 overlay 会额外接入外部网络 `edge-proxy`，用于：
-- `Nginx Proxy Manager` 反向代理
-- 容器间 `Origin` 健康检查
-
-### 本地构建
-
-```bash
-cp .env.example .env
-# 编辑 .env 填入真实密钥
-
-docker compose up -d --build
-docker compose logs -f
-```
+健康检查端口默认只绑定 `127.0.0.1`，NPM 通过 Docker 网络访问 `http://binance-monitor:<HEALTH_PORT>` 即可。
 
 ## 本地开发
 
@@ -136,7 +126,7 @@ npm test        # 运行测试
 
 - **平台**: `linux/amd64`, `linux/arm64`
 - **镜像**: `ghcr.io/<owner>/binance-monitor`
-- **标签**: `main`, `1.0.1`, `1.0`, `<commit-sha>`
+- **标签**: `main`, `1.0.2`, `1.0`, `<commit-sha>`
 - PR 仅构建不推送
 
 ## 管理命令
@@ -147,7 +137,6 @@ docker compose up -d            # 启动
 docker compose logs -f          # 实时日志
 docker compose restart          # 重启
 docker compose down             # 停止并删除
-docker compose up -d --build    # 本地重新构建并启动
 docker stats binance-monitor    # 资源占用
 curl http://localhost:8080/health  # 健康检查
 ```
@@ -177,3 +166,33 @@ data/
 - `USER node` — 非 root 运行
 - `tmpfs /tmp` — 临时文件隔离
 - Named volume — 持久化数据与容器解耦
+
+## 捐赠
+
+如果这个项目对你有帮助，欢迎请我喝杯咖啡 ☕
+
+👉 [捐赠页面](https://donate.chiloh.com)
+
+### 扫码支付
+
+<table>
+  <tr>
+    <td align="center"><b>微信支付</b></td>
+    <td align="center"><b>支付宝</b></td>
+    <td align="center"><b>PayPal</b></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="https://donate.chiloh.com/img/wechat.webp" width="200" alt="WeChat Pay" /></td>
+    <td align="center"><img src="https://donate.chiloh.com/img/alipay.webp" width="200" alt="Alipay" /></td>
+    <td align="center"><img src="https://donate.chiloh.com/img/paypal.webp" width="200" alt="PayPal" /></td>
+  </tr>
+</table>
+
+### 加密货币
+
+| 币种 | 网络 | 地址 |
+|------|------|------|
+| **BTC** | Bitcoin SegWit | `bc1qpqchzes0wrhtg5h2rwvh3f6tf5weljetx2adun` |
+| **EVM** | ETH / BSC / Polygon / Arb / OP / Base | `0x797A13aB0398eef748cF6D8C518b0803a14918b1` |
+| **USDT** | TRC-20 (Tron) | `TQeEKzMRvAUXEU5tsiPR1GX8WUHdhKUhwg` |
+| **SOL** | Solana (SOL & USDT SPL) | `GXTtMhJvbpmdrqSz5x65Hzd6wia5YYwaHdnxCB3PC1HY` |

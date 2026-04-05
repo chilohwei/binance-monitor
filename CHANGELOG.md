@@ -1,3 +1,11 @@
+## 1.0.2 - 2026-04-05
+
+### Added
+- Add a donate section to the README
+
+### Changed
+- Simplify Docker Compose to a single file (remove `docker-compose.prod.yml` overlay): pull GHCR image via `IMAGE_TAG`, attach `edge-proxy` network, bind health check port to `127.0.0.1`, and use Compose-compatible resource limits
+
 ## 1.0.1 - 2026-04-02
 
 ### Fixes

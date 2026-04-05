@@ -1,3 +1,11 @@
+## 1.0.2 - 2026-04-05
+
+### 新增
+- README 增加捐赠说明
+
+### 变更
+- Docker Compose 单文件化（移除 `docker-compose.prod.yml` overlay）：通过 `IMAGE_TAG` 拉取 GHCR 镜像、接入 `edge-proxy` 网络、健康检查端口绑定 `127.0.0.1`、资源限制改为 Compose 通用写法
+
 ## 1.0.1 - 2026-04-02
 
 ### 修复
