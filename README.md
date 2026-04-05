@@ -21,8 +21,8 @@
 cp .env.example .env
 # 编辑 .env 填入真实密钥
 
-IMAGE_TAG=1.0.2 docker compose pull
-IMAGE_TAG=1.0.2 docker compose up -d
+IMAGE_TAG=1.0.3 docker compose pull
+IMAGE_TAG=1.0.3 docker compose up -d
 docker compose logs -f
 ```
 
@@ -42,11 +42,13 @@ echo "<github_pat>" | docker login ghcr.io -u chilohwei --password-stdin
 cp .env.example .env
 # 编辑 .env
 
-IMAGE_TAG=1.0.2 docker compose pull
-IMAGE_TAG=1.0.2 docker compose up -d
+IMAGE_TAG=1.0.3 docker compose pull
+IMAGE_TAG=1.0.3 docker compose up -d
 ```
 
 健康检查端口默认只绑定 `127.0.0.1`，NPM 通过 Docker 网络访问 `http://binance-monitor:<HEALTH_PORT>` 即可。
+
+**Bark 地址（重要）**：若 `BARK_SERVER` 指向经 **Cloudflare** 的公网域名，服务端 `POST /push` 可能被 **人机挑战** 拦截（日志里表现为 `403` / `Cloudflare blocked`），Telegram 仍可能正常。与自建 `bark-server` **同机且同在 `edge-proxy`** 时，请在 `.env` 中使用 **容器内网地址**，例如 `http://bark-server:8080`（端口以 bark 容器监听为准，可用 `docker compose exec binance-monitor node -e "fetch('http://bark-server:8080/ping').then(r=>r.text()).then(console.log)"` 自测）。手机 Bark App 仍可继续使用 HTTPS 域名。
 
 ## 本地开发
 
@@ -67,7 +69,7 @@ npm test        # 运行测试
 |---|---|---|---|
 | `BINANCE_API_KEY` | 是 | - | 币安 API Key |
 | `BINANCE_API_SECRET` | 是 | - | 币安 API Secret |
-| `BARK_SERVER` | 否 | `https://bark.chiloh.com` | Bark 服务器地址 |
+| `BARK_SERVER` | 否 | `https://bark.chiloh.com` | Bark API 根 URL（Docker 与同网 `bark-server` 时建议 `http://bark-server:8080`，见上文） |
 | `BARK_KEYS` | 是 | - | Bark 设备 Key，逗号分隔 |
 | `BARK_DEFAULT_LEVEL` | 否 | `critical` | 通知级别 |
 | `BARK_DEFAULT_SOUND` | 否 | `alarm` | 通知声音 |
@@ -128,7 +130,7 @@ npm test        # 运行测试
 
 - **平台**: `linux/amd64`, `linux/arm64`
 - **镜像**: `ghcr.io/<owner>/binance-monitor`
-- **标签**: `main`, `1.0.2`, `1.0`, `<commit-sha>`
+- **标签**: `main`, `1.0.3`, `1.0`, `<commit-sha>`
 - **可见性**：镜像在 GHCR 侧保持 **私有 Package**；部署机拉取需已登录且具备 `read:packages`
 - PR 仅构建不推送
 

@@ -1,6 +1,6 @@
 services:
   binance-monitor:
-    image: ghcr.io/chilohwei/binance-monitor:${IMAGE_TAG:-1.0.2}
+    image: ghcr.io/chilohwei/binance-monitor:${IMAGE_TAG:-1.0.3}
     container_name: binance-monitor
     init: true
     restart: always

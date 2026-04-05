@@ -1,3 +1,11 @@
+## 1.0.3 - 2026-04-05
+
+### 修复
+- Bark：使用 `POST /push` 且 JSON 携带 `device_key`；识别 Cloudflare 人机页（`403` / 非 JSON HTML），跳过重试并输出简短可操作的错误提示
+
+### 变更
+- 文档与 `.env.example`：说明 Docker 下同网优先使用 `http://bark-server:<port>` 作为 `BARK_SERVER`，公网走 Cloudflare 时可能被拦截
+
 ## 1.0.2 - 2026-04-05
 
 ### 新增

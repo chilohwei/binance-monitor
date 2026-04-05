@@ -1,3 +1,11 @@
+## 1.0.3 - 2026-04-05
+
+### Fixed
+- Bark pushes use `POST /push` with `device_key` in JSON; detect Cloudflare challenge pages (`403` / non-JSON HTML), skip pointless retries, and log compact errors with an actionable hint
+
+### Changed
+- Document `BARK_SERVER` for Docker: prefer internal `http://bark-server:<port>` on the same network when the public host is behind Cloudflare; expand `.env.example` comments
+
 ## 1.0.2 - 2026-04-05
 
 ### Added
