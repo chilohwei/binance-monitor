@@ -28,12 +28,14 @@ docker compose logs -f
 
 服务会直接拉取 GHCR 预构建镜像，不需要本地源码参与部署。
 
+**镜像与仓库**：源码仓库为公开；**`ghcr.io` 上的镜像仍为私有 Package**。拉取镜像前必须用 GitHub PAT 登录 GHCR（需勾选 `read:packages`），与仓库可见性无关。
+
 ### VPS / 生产部署（GHCR + NPM）
 
 与 `bark` / `uptime` 等同机项目一致：`docker-compose.yml` 单文件内声明外部网络 `edge-proxy`，服务同时加入 `default` 与 `edge-proxy`。
 
 ```bash
-# 1. 登录 GHCR（私有镜像需要 read:packages）
+# 1. 登录 GHCR（私有镜像包，需 read:packages）
 echo "<github_pat>" | docker login ghcr.io -u chilohwei --password-stdin
 
 # 2. 仅保留 compose 文件和 .env 即可部署
@@ -127,6 +129,7 @@ npm test        # 运行测试
 - **平台**: `linux/amd64`, `linux/arm64`
 - **镜像**: `ghcr.io/<owner>/binance-monitor`
 - **标签**: `main`, `1.0.2`, `1.0`, `<commit-sha>`
+- **可见性**：镜像在 GHCR 侧保持 **私有 Package**；部署机拉取需已登录且具备 `read:packages`
 - PR 仅构建不推送
 
 ## 管理命令
