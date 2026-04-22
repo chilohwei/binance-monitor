@@ -3,6 +3,7 @@ import type { Notifier, NotifyMessage } from "../types.js";
 import { getPool } from "../utils/http.js";
 import { sleep } from "../utils/sleep.js";
 import { createChildLogger } from "../utils/logger.js";
+import { recordNotifierResult } from "../health.js";
 
 const log = createChildLogger("bark");
 
@@ -52,7 +53,7 @@ async function pushToDevice(
     level,
     badge,
     volume: String(volume),
-    call: String(call),
+    call: String(msg.call ?? call),
     isArchive: String(isArchive),
     ...(msg.url ? { url: msg.url } : {}),
   };
@@ -112,6 +113,11 @@ export class BarkNotifier implements Notifier {
       throw new Error("all bark devices failed");
     }
     if (failures.length > 0) {
+      recordNotifierResult(
+        this.name,
+        false,
+        new Error(`partial bark failure (${failures.length}/${results.length})`),
+      );
       log.warn(
         { failed: failures.length, total: results.length },
         "partial bark failure",

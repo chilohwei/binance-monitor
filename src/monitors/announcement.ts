@@ -1,14 +1,19 @@
 import WebSocket from "ws";
 import { config } from "../config.js";
+import { matchesAnnouncementFilter } from "../domain/announcement.js";
+import { buildAnnouncementUrl } from "../domain/binance.js";
 import type { Monitor } from "../types.js";
 import { NotifyDispatcher } from "../notifiers/dispatcher.js";
-import { PersistentStore } from "../utils/store.js";
+import {
+  AnnouncementDeduper,
+  announcementDedupKey,
+} from "../utils/announcement-deduper.js";
+import { applyNotificationPolicy } from "../utils/notification-policy.js";
 import { hmacSha256, generateRandom } from "../utils/signature.js";
 import { announcementBody } from "../utils/i18n.js";
 import { wsMessageSchema, announcementDataSchema } from "../schemas.js";
-import { reportAlive } from "../health.js";
 import { createChildLogger } from "../utils/logger.js";
-import { join } from "node:path";
+import { MonitorTelemetry } from "../runtime/monitor-telemetry.js";
 
 const log = createChildLogger("announcement");
 
@@ -17,29 +22,28 @@ const TOPIC = "com_announcement_en";
 
 export class AnnouncementMonitor implements Monitor {
   readonly name = "announcement";
+  private readonly telemetry = new MonitorTelemetry(this.name);
   private ws: WebSocket | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelay = config.ws.reconnectMinMs;
   private running = false;
-  private store: PersistentStore<boolean>;
 
-  constructor(private readonly dispatcher: NotifyDispatcher) {
-    this.store = new PersistentStore(
-      join(config.dataDir, "announcement-seen.json"),
-      config.store.ttlDays,
-      config.store.flushDebounceMs,
-    );
-  }
+  constructor(
+    private readonly dispatcher: NotifyDispatcher,
+    private readonly deduper: AnnouncementDeduper,
+  ) {}
 
   async start(): Promise<void> {
-    await this.store.load();
     this.running = true;
+    this.telemetry.state("starting");
+    this.telemetry.alive();
     this.connect();
   }
 
   async stop(): Promise<void> {
     this.running = false;
+    this.telemetry.state("stopped");
     this.clearPing();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -50,7 +54,6 @@ export class AnnouncementMonitor implements Monitor {
       this.ws.close();
       this.ws = null;
     }
-    await this.store.close();
   }
 
   private buildSignedUrl(): string {
@@ -77,6 +80,8 @@ export class AnnouncementMonitor implements Monitor {
     this.ws.on("open", () => {
       log.info("websocket connected");
       this.reconnectDelay = config.ws.reconnectMinMs;
+      this.telemetry.state("connected");
+      this.telemetry.alive();
       this.startPing();
 
       const subscribeMsg = JSON.stringify({
@@ -84,22 +89,27 @@ export class AnnouncementMonitor implements Monitor {
         value: TOPIC,
       });
       this.ws!.send(subscribeMsg);
+      this.telemetry.state("subscribing");
       log.info({ topic: TOPIC }, "subscribed");
     });
 
     this.ws.on("message", (raw: Buffer) => {
-      this.handleMessage(raw.toString()).catch((err) =>
-        log.error({ err }, "message handler error"),
-      );
+      this.handleMessage(raw.toString()).catch((err) => {
+        this.telemetry.error(err);
+        log.error({ err }, "message handler error");
+      });
     });
 
     this.ws.on("close", (code, reason) => {
       log.warn({ code, reason: reason.toString() }, "websocket closed");
+      this.telemetry.state(this.running ? "reconnecting" : "stopped");
       this.clearPing();
       this.scheduleReconnect();
     });
 
     this.ws.on("error", (err) => {
+      this.telemetry.error(err);
+      this.telemetry.state("error");
       log.error({ err }, "websocket error");
     });
 
@@ -131,6 +141,7 @@ export class AnnouncementMonitor implements Monitor {
       clearTimeout(this.reconnectTimer);
     }
 
+    this.telemetry.state("reconnecting");
     log.info({ delayMs: this.reconnectDelay }, "reconnecting");
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
@@ -146,12 +157,15 @@ export class AnnouncementMonitor implements Monitor {
   private async handleMessage(raw: string): Promise<void> {
     const parsed = wsMessageSchema.safeParse(JSON.parse(raw));
     if (!parsed.success) {
+      this.telemetry.error(parsed.error.message);
       log.warn({ error: parsed.error.message }, "invalid ws message schema");
       return;
     }
     const msg = parsed.data;
 
     if (msg.type === "COMMAND") {
+      this.telemetry.state("subscribed");
+      this.telemetry.alive();
       log.info({ data: msg.data, subType: msg.subType }, "command response");
       return;
     }
@@ -161,20 +175,31 @@ export class AnnouncementMonitor implements Monitor {
       return;
     }
 
-    reportAlive(this.name);
+    this.telemetry.alive();
 
     const annParsed = announcementDataSchema.safeParse(JSON.parse(msg.data));
     if (!annParsed.success) {
+      this.telemetry.error(annParsed.error.message);
       log.warn({ error: annParsed.error.message }, "invalid announcement data schema");
       return;
     }
     const announcement = annParsed.data;
+    this.telemetry.count("seen");
 
-    const dedupKey = `${announcement.catalogId}:${announcement.publishDate}:${announcement.title}`;
+    const dedupKey = announcementDedupKey({
+      catalogId: announcement.catalogId,
+      title: announcement.title,
+      code: announcement.code,
+    });
 
-    if (this.store.has(dedupKey)) return;
+    if (!this.deduper.claim(dedupKey)) {
+      this.telemetry.count("deduped");
+      return;
+    }
 
-    if (!this.matchesFilter(announcement)) {
+    if (!matchesAnnouncementFilter(announcement, config.announcement)) {
+      this.deduper.confirm(dedupKey);
+      this.telemetry.count("filtered");
       log.debug(
         { title: announcement.title, catalogId: announcement.catalogId },
         "filtered out",
@@ -191,32 +216,31 @@ export class AnnouncementMonitor implements Monitor {
       "new announcement matched",
     );
 
-    const url = announcement.code
-      ? `https://www.binance.com/en/support/announcement/detail/${announcement.code}`
-      : undefined;
+    const url = buildAnnouncementUrl(announcement.code);
 
     try {
-      await this.dispatcher.broadcast({
-        title: `[${announcement.catalogName}] ${announcement.title}`,
-        body: announcementBody(announcement.title),
-        group: config.announcement.group,
-        url,
-        level: config.bark.defaultLevel,
-        sound: config.bark.defaultSound,
-      });
-      this.store.set(dedupKey, true);
+      await this.dispatcher.broadcast(
+        applyNotificationPolicy(
+          {
+            title: `[${announcement.catalogName}] ${announcement.title}`,
+            body: announcementBody(announcement.title),
+            group: config.announcement.group,
+            url,
+            sound: config.bark.defaultSound,
+          },
+          {
+            kind: "announcement",
+            mode: "single",
+            profile: config.notification.profile,
+          },
+        ),
+      );
+      this.deduper.confirm(dedupKey);
+      this.telemetry.count("sent");
     } catch (err) {
+      this.deduper.release(dedupKey);
+      this.telemetry.error(err);
       log.error({ err, title: announcement.title }, "all channels failed, will retry");
     }
-  }
-
-  private matchesFilter(a: { catalogId: number; title: string; body: string }): boolean {
-    const { catalogIds, keywords } = config.announcement;
-
-    if (!catalogIds.includes(a.catalogId)) return false;
-
-    if (keywords.length === 0) return true;
-
-    return keywords.some((kw) => a.title.includes(kw) || a.body.includes(kw));
   }
 }

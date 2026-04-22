@@ -1,23 +1,23 @@
+import { ALPHA_EVENT_LABELS, type AlphaEventType } from "../domain/alpha.js";
+
 const DIVIDER = "\n———————————\n";
-
-const ALPHA_EVENT_LABELS: Record<string, { en: string; zh: string }> = {
-  new_token: { en: "New Alpha Token", zh: "Alpha 新代币上线" },
-  airdrop_live: { en: "Airdrop Live", zh: "空投已开启" },
-  tge_live: { en: "TGE Live", zh: "TGE 已开启" },
-};
-
-export function bilingualTitle(en: string, zh: string): string {
-  return `${en}${DIVIDER}${zh}`;
-}
+export const ANNOUNCEMENT_HINT = "📢 币安新公告，请查看详情";
 
 export function announcementBody(title: string): string {
-  return `${title}${DIVIDER}📢 币安新公告，请查看详情`;
+  return `${title}${DIVIDER}${ANNOUNCEMENT_HINT}`;
 }
 
-export function alphaEventTitle(type: string, symbol: string): string {
-  const label = ALPHA_EVENT_LABELS[type];
-  if (!label) return `🚀 ${symbol}`;
-  return `🚀 ${label.en}: ${symbol} | ${label.zh}`;
+export function alphaEventTitle(typeOrTypes: string | string[], symbol: string): string {
+  const types = Array.isArray(typeOrTypes) ? typeOrTypes : [typeOrTypes];
+  const labels = types
+    .map((type) => ALPHA_EVENT_LABELS[type as AlphaEventType])
+    .filter((label): label is { en: string; zh: string } => Boolean(label));
+
+  if (labels.length === 0) return `🚀 ${symbol}`;
+
+  const en = labels.map((label) => label.en).join(" / ");
+  const zh = labels.map((label) => label.zh).join(" / ");
+  return `🚀 ${en}: ${symbol} | ${zh}`;
 }
 
 export function alphaEventBody(

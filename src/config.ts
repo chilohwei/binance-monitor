@@ -19,14 +19,14 @@ const configSchema = z.object({
     keys: z.array(z.string().min(1)).min(1),
     defaultLevel: z
       .enum(["active", "timeSensitive", "passive", "critical"])
-      .default("critical"),
+      .default("timeSensitive"),
     defaultSound: z.string().default("alarm"),
     icon: z.string().url().default(
       "https://public.bnbstatic.com/20190405/eb2349c3-b2f8-4a93-a286-8f86a62ea9d8.png",
     ),
     volume: z.number().int().min(0).max(10).default(10),
     badge: z.number().int().min(0).default(1),
-    call: z.number().int().min(0).max(1).default(1),
+    call: z.number().int().min(0).max(1).default(0),
     isArchive: z.number().int().min(0).max(1).default(1),
     maxRetries: z.number().int().min(0).default(3),
   }),
@@ -46,10 +46,15 @@ const configSchema = z.object({
     apiPollInterval: z.number().int().min(5).default(10),
     group: z.string().default("Alpha监控"),
   }),
+  notification: z.object({
+    profile: z.enum(["quiet", "balanced", "aggressive"]).default("balanced"),
+    batchWindowMs: z.number().int().min(0).default(1000),
+  }),
   announcementPoll: z.object({
     enabled: z.boolean().default(true),
     intervalMs: z.number().int().min(5000).default(30000),
-    pageSize: z.number().int().min(1).max(50).default(10),
+    pageSize: z.number().int().min(1).max(50).default(50),
+    maxPages: z.number().int().min(1).max(20).default(5),
   }),
   ws: z.object({
     pingIntervalMs: z.number().int().min(5000).default(25000),
@@ -81,12 +86,12 @@ function buildRawConfig() {
     bark: {
       server: env("BARK_SERVER", "https://bark.chiloh.com"),
       keys: parseCommaSeparated(env("BARK_KEYS")),
-      defaultLevel: env("BARK_DEFAULT_LEVEL", "critical"),
+      defaultLevel: env("BARK_DEFAULT_LEVEL", "timeSensitive"),
       defaultSound: env("BARK_DEFAULT_SOUND", "alarm"),
       icon: env("BARK_ICON", "https://public.bnbstatic.com/20190405/eb2349c3-b2f8-4a93-a286-8f86a62ea9d8.png"),
       volume: Number(env("BARK_VOLUME", "10")),
       badge: Number(env("BARK_BADGE", "1")),
-      call: Number(env("BARK_CALL", "1")),
+      call: Number(env("BARK_CALL", "0")),
       isArchive: Number(env("BARK_IS_ARCHIVE", "1")),
       maxRetries: Number(env("BARK_MAX_RETRIES", "3")),
     },
@@ -110,10 +115,15 @@ function buildRawConfig() {
       apiPollInterval: Number(env("ALPHA_API_POLL_INTERVAL", "10")),
       group: env("ALPHA_GROUP", "Alpha监控"),
     },
+    notification: {
+      profile: env("NOTIFICATION_PROFILE", "balanced"),
+      batchWindowMs: Number(env("NOTIFICATION_BATCH_WINDOW_MS", "1000")),
+    },
     announcementPoll: {
       enabled: env("ANNOUNCEMENT_POLL_ENABLED", "true") === "true",
       intervalMs: Number(env("ANNOUNCEMENT_POLL_INTERVAL_MS", "30000")),
-      pageSize: Number(env("ANNOUNCEMENT_POLL_PAGE_SIZE", "10")),
+      pageSize: Number(env("ANNOUNCEMENT_POLL_PAGE_SIZE", "50")),
+      maxPages: Number(env("ANNOUNCEMENT_POLL_MAX_PAGES", "5")),
     },
     ws: {
       pingIntervalMs: Number(env("WS_PING_INTERVAL_MS", "25000")),

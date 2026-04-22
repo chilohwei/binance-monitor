@@ -27,6 +27,14 @@ describe("alphaEventTitle", () => {
     assert.ok(t2.includes("空投已开启"));
   });
 
+  it("combines labels when multiple alpha states change at once", () => {
+    const title = alphaEventTitle(["new_token", "airdrop_live"], "CHECK");
+    assert.ok(title.includes("New Alpha Token"));
+    assert.ok(title.includes("Airdrop Live"));
+    assert.ok(title.includes("Alpha 新代币上线"));
+    assert.ok(title.includes("空投已开启"));
+  });
+
   it("falls back for unknown type", () => {
     assert.equal(alphaEventTitle("unknown", "TEST"), "🚀 TEST");
   });

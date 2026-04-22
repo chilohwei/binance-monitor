@@ -1,3 +1,14 @@
+## 1.0.4 - 2026-04-22
+
+### 修复
+- 让公告 WebSocket monitor 即使在第一条数据到来前也能出现在 `/health` 中，补充启动、连接、订阅、重连和错误状态
+- 将 WebSocket 传输层错误写入 monitor telemetry，方便远程排障
+
+### 变更
+- 抽出 Binance URL、公告过滤、Alpha 事件定义和 monitor telemetry 公共层，减少各 monitor 之间的重复代码
+- 新增可复用的轮询执行骨架，并保证 REST monitor 启动时首轮执行语义稳定可预期
+- Docker Compose 默认改为构建当前工作区代码，同时保留通过 `IMAGE_NAME` / `IMAGE_TAG` 使用 GHCR 镜像的能力
+
 ## 1.0.3 - 2026-04-05
 
 ### 修复

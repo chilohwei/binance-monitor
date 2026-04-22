@@ -7,6 +7,7 @@
 - **公告监控 (WebSocket)** — 实时订阅币安 CMS 公告 (`com_announcement_en`)，按 catalogId + 关键词过滤
 - **公告监控 (REST 轮询)** — 定时轮询 BAPI 公告接口作为 WebSocket 的备份
 - **Alpha 监控** — 轮询官方 Token List API，检测新 token / 空投上线 / TGE 上线
+- **通知策略** — 单条提醒保持更高优先级，批量摘要自动降级，支持 `quiet / balanced / aggressive` 档位，短时间同组消息自动合并，默认不持续响铃，减少刷屏
 - **Bark 推送** — 多设备并发 + 指数退避重试 + 连接池复用
 - **Telegram 推送** — Bot sendMessage API + HTML 格式 + 速率限制处理
 - **双语通知** — 英文优先，中文翻译，分割线分隔
@@ -15,24 +16,36 @@
 
 ## 快速开始
 
-### 使用预构建镜像（推荐）
+### 在仓库内直接运行当前代码（推荐）
 
 ```bash
 cp .env.example .env
 # 编辑 .env 填入真实密钥
 
-IMAGE_TAG=1.0.3 docker compose pull
-IMAGE_TAG=1.0.3 docker compose up -d
+docker compose up -d --build
 docker compose logs -f
 ```
 
-服务会直接拉取 GHCR 预构建镜像，不需要本地源码参与部署。
+这会直接构建当前工作区代码并启动容器，适合本地验证和自托管。
+
+### 使用预构建镜像
+
+```bash
+cp .env.example .env
+# 编辑 .env 填入真实密钥
+
+IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.4 docker compose pull
+IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.4 docker compose up -d
+docker compose logs -f
+```
+
+这会直接拉取 GHCR 预构建镜像，不需要本地构建。
 
 **镜像与仓库**：源码仓库为公开；**`ghcr.io` 上的镜像仍为私有 Package**。拉取镜像前必须用 GitHub PAT 登录 GHCR（需勾选 `read:packages`），与仓库可见性无关。
 
 ### VPS / 生产部署（GHCR + NPM）
 
-与 `bark` / `uptime` 等同机项目一致：`docker-compose.yml` 单文件内声明外部网络 `edge-proxy`，服务同时加入 `default` 与 `edge-proxy`。
+与 `bark` / `uptime` 等同机项目一致：`docker-compose.yml` 单文件内声明外部网络 `edge-proxy`，服务同时加入 `default` 与 `edge-proxy`。如你的外部网络名不同，可通过 `EDGE_PROXY_NETWORK` 覆盖。
 
 ```bash
 # 1. 登录 GHCR（私有镜像包，需 read:packages）
@@ -42,11 +55,13 @@ echo "<github_pat>" | docker login ghcr.io -u chilohwei --password-stdin
 cp .env.example .env
 # 编辑 .env
 
-IMAGE_TAG=1.0.3 docker compose pull
-IMAGE_TAG=1.0.3 docker compose up -d
+IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.4 docker compose pull
+IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.4 docker compose up -d
 ```
 
 健康检查端口默认只绑定 `127.0.0.1`，NPM 通过 Docker 网络访问 `http://binance-monitor:<HEALTH_PORT>` 即可。
+
+`/health` 会同时返回各 monitor 的最近活跃时间、当前状态、命中/过滤/去重/发送计数，以及 Bark / Telegram 的成功失败统计，方便快速判断是“源头没消息”、"规则过滤掉了"，还是“通知通道出了问题”。
 
 **Bark 地址（重要）**：若 `BARK_SERVER` 指向经 **Cloudflare** 的公网域名，服务端 `POST /push` 可能被 **人机挑战** 拦截（日志里表现为 `403` / `Cloudflare blocked`），Telegram 仍可能正常。与自建 `bark-server` **同机且同在 `edge-proxy`** 时，请在 `.env` 中使用 **容器内网地址**，例如 `http://bark-server:8080`（端口以 bark 容器监听为准，可用 `docker compose exec binance-monitor node -e "fetch('http://bark-server:8080/ping').then(r=>r.text()).then(console.log)"` 自测）。手机 Bark App 仍可继续使用 HTTPS 域名。
 
@@ -71,12 +86,12 @@ npm test        # 运行测试
 | `BINANCE_API_SECRET` | 是 | - | 币安 API Secret |
 | `BARK_SERVER` | 否 | `https://bark.chiloh.com` | Bark API 根 URL（Docker 与同网 `bark-server` 时建议 `http://bark-server:8080`，见上文） |
 | `BARK_KEYS` | 是 | - | Bark 设备 Key，逗号分隔 |
-| `BARK_DEFAULT_LEVEL` | 否 | `critical` | 通知级别 |
+| `BARK_DEFAULT_LEVEL` | 否 | `timeSensitive` | 通知级别 |
 | `BARK_DEFAULT_SOUND` | 否 | `alarm` | 通知声音 |
 | `BARK_ICON` | 否 | Binance Logo | 通知图标 URL |
 | `BARK_VOLUME` | 否 | `10` | 通知音量 0-10 |
 | `BARK_BADGE` | 否 | `1` | 角标数 |
-| `BARK_CALL` | 否 | `1` | 是否持续响铃 |
+| `BARK_CALL` | 否 | `0` | 是否持续响铃 |
 | `BARK_IS_ARCHIVE` | 否 | `1` | 是否归档 |
 | `BARK_MAX_RETRIES` | 否 | `3` | 最大重试次数 |
 | `TG_BOT_TOKEN` | 是 | - | Telegram Bot Token |
@@ -89,9 +104,12 @@ npm test        # 运行测试
 | `ANNOUNCEMENT_GROUP` | 否 | `币安公告` | 推送分组 |
 | `ANNOUNCEMENT_POLL_ENABLED` | 否 | `true` | 启用 REST 轮询备份 |
 | `ANNOUNCEMENT_POLL_INTERVAL_MS` | 否 | `30000` | 轮询间隔 (ms) |
-| `ANNOUNCEMENT_POLL_PAGE_SIZE` | 否 | `10` | 每次拉取条数 |
+| `ANNOUNCEMENT_POLL_PAGE_SIZE` | 否 | `50` | 每次拉取条数 |
+| `ANNOUNCEMENT_POLL_MAX_PAGES` | 否 | `5` | 单次轮询最多翻页次数 |
 | `ALPHA_API_POLL_INTERVAL` | 否 | `10` | Alpha 轮询间隔 (秒) |
 | `ALPHA_GROUP` | 否 | `Alpha监控` | 推送分组 |
+| `NOTIFICATION_PROFILE` | 否 | `balanced` | 通知强度档位：`quiet` / `balanced` / `aggressive` |
+| `NOTIFICATION_BATCH_WINDOW_MS` | 否 | `1000` | 同组消息合并窗口，`0` 表示关闭 |
 | `WS_PING_INTERVAL_MS` | 否 | `25000` | WS 心跳间隔 |
 | `WS_RECONNECT_MIN_MS` | 否 | `1000` | 最小重连延迟 |
 | `WS_RECONNECT_MAX_MS` | 否 | `30000` | 最大重连延迟 |
@@ -130,15 +148,15 @@ npm test        # 运行测试
 
 - **平台**: `linux/amd64`, `linux/arm64`
 - **镜像**: `ghcr.io/<owner>/binance-monitor`
-- **标签**: `main`, `1.0.3`, `1.0`, `<commit-sha>`
+- **标签**: `main`, `1.0.4`, `1.0`, `<commit-sha>`
 - **可见性**：镜像在 GHCR 侧保持 **私有 Package**；部署机拉取需已登录且具备 `read:packages`
 - PR 仅构建不推送
 
 ## 管理命令
 
 ```bash
-docker compose pull             # 拉取最新镜像
-docker compose up -d            # 启动
+docker compose up -d --build    # 构建并启动当前代码
+docker compose pull             # 拉取预构建镜像
 docker compose logs -f          # 实时日志
 docker compose restart          # 重启
 docker compose down             # 停止并删除

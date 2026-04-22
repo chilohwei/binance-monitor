@@ -8,7 +8,9 @@ import { AnnouncementPollMonitor } from "./monitors/announcement-poll.js";
 import { AlphaApiMonitor } from "./monitors/alpha-api.js";
 import { startHealthServer, stopHealthServer } from "./health.js";
 import { closeAllPools } from "./utils/http.js";
+import { AnnouncementDeduper } from "./utils/announcement-deduper.js";
 import { logger } from "./utils/logger.js";
+import { join } from "node:path";
 
 const log = logger.child({ module: "main" });
 
@@ -28,6 +30,8 @@ async function main() {
       barkDevices: config.bark.keys.length,
       catalogIds: config.announcement.catalogIds,
       keywords: config.announcement.keywords,
+      notificationProfile: config.notification.profile,
+      notificationBatchWindowMs: config.notification.batchWindowMs,
       alphaPollInterval: config.alpha.apiPollInterval,
       announcementPollEnabled: config.announcementPoll.enabled,
       healthPort: config.healthPort,
@@ -37,18 +41,25 @@ async function main() {
 
   await startHealthServer(config.healthPort);
 
+  const announcementDeduper = new AnnouncementDeduper(
+    join(config.dataDir, "announcement-seen.json"),
+    config.store.ttlDays,
+    config.store.flushDebounceMs,
+  );
+  await announcementDeduper.load();
+
   const dispatcher = new NotifyDispatcher([
     new BarkNotifier(),
     new TelegramNotifier(),
-  ]);
+  ], config.notification.batchWindowMs);
 
   const monitors: Monitor[] = [
-    new AnnouncementMonitor(dispatcher),
+    new AnnouncementMonitor(dispatcher, announcementDeduper),
     new AlphaApiMonitor(dispatcher),
   ];
 
   if (config.announcementPoll.enabled) {
-    monitors.push(new AnnouncementPollMonitor(dispatcher));
+    monitors.push(new AnnouncementPollMonitor(dispatcher, announcementDeduper));
   }
 
   for (const m of monitors) {
@@ -79,6 +90,8 @@ async function main() {
       }
     }
 
+    await dispatcher.close();
+    await announcementDeduper.close();
     await stopHealthServer();
     await closeAllPools();
     log.info("shutdown complete");

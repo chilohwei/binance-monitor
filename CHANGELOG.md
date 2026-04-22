@@ -1,3 +1,14 @@
+## 1.0.4 - 2026-04-22
+
+### Fixed
+- Make the announcement WebSocket monitor visible in `/health` even before the first data event by reporting startup, connection, subscription, reconnect, and error states
+- Record WebSocket transport errors in monitor telemetry so failures are easier to diagnose remotely
+
+### Changed
+- Centralize Binance URLs, announcement filter logic, Alpha event definitions, and monitor telemetry helpers to reduce duplication across monitors
+- Add a reusable polling loop with deterministic first-run startup semantics for REST-based monitors
+- Let Docker Compose build the current workspace by default while keeping GHCR image deployment available via `IMAGE_NAME` / `IMAGE_TAG`
+
 ## 1.0.3 - 2026-04-05
 
 ### Fixed

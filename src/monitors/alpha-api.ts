@@ -1,26 +1,90 @@
 import { config } from "../config.js";
-import type { AlphaTokenApiItem, AlphaTokenSnapshot, Monitor } from "../types.js";
+import {
+  BINANCE_MONITOR_USER_AGENT,
+  BINANCE_WEB_ORIGIN,
+} from "../domain/binance.js";
+import type {
+  AlphaTokenApiItem,
+  AlphaTokenSnapshot,
+  Monitor,
+  NotifyMessage,
+} from "../types.js";
 import { NotifyDispatcher } from "../notifiers/dispatcher.js";
 import { PersistentStore } from "../utils/store.js";
 import { alphaEventTitle, alphaEventBody } from "../utils/i18n.js";
+import { applyNotificationPolicy } from "../utils/notification-policy.js";
+import {
+  dedupeAlphaEventTypes,
+  type AlphaEventType,
+} from "../domain/alpha.js";
 import { alphaApiResponseSchema } from "../schemas.js";
 import { getPool } from "../utils/http.js";
-import { reportAlive } from "../health.js";
 import { createChildLogger } from "../utils/logger.js";
+import { MonitorTelemetry } from "../runtime/monitor-telemetry.js";
+import { PollingLoop } from "../runtime/polling-loop.js";
 import { join } from "node:path";
 
 const log = createChildLogger("alpha-api");
 
-const ORIGIN = "https://www.binance.com";
 const PATH =
   "/bapi/defi/v1/public/wallet-direct/buw/wallet/cex/alpha/all/token/list";
+const INITIAL_CATCH_UP_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+interface PendingAlphaEvent {
+  token: AlphaTokenApiItem;
+  types: AlphaEventType[];
+}
+
+function formatAlphaNotification(
+  events: PendingAlphaEvent[],
+): NotifyMessage {
+  const sound = config.bark.defaultSound;
+
+  if (events.length === 1) {
+    const event = events[0]!;
+    return {
+      title: alphaEventTitle(event.types, event.token.symbol),
+      body: alphaEventBody(
+        event.token.name,
+        event.token.symbol,
+        event.token.chainId,
+        event.token.price,
+        event.token.marketCap,
+      ),
+      group: config.alpha.group,
+      sound,
+    };
+  }
+
+  const body = events
+    .map((event, index) =>
+      [
+        `${index + 1}. ${alphaEventTitle(event.types, event.token.symbol)}`,
+        alphaEventBody(
+          event.token.name,
+          event.token.symbol,
+          event.token.chainId,
+          event.token.price,
+          event.token.marketCap,
+        ),
+      ].join("\n"),
+    )
+    .join("\n\n———————————\n\n");
+
+  return {
+    title: `🚀 Alpha 更新 (${events.length} 条)`,
+    body,
+    group: config.alpha.group,
+    sound,
+  };
+}
 
 export class AlphaApiMonitor implements Monitor {
   readonly name = "alpha-api";
-  private timer: ReturnType<typeof setTimeout> | null = null;
-  private running = false;
   private initialized = false;
   private store: PersistentStore<AlphaTokenSnapshot>;
+  private readonly telemetry = new MonitorTelemetry(this.name);
+  private readonly loop: PollingLoop;
 
   constructor(private readonly dispatcher: NotifyDispatcher) {
     this.store = new PersistentStore(
@@ -28,45 +92,35 @@ export class AlphaApiMonitor implements Monitor {
       config.store.ttlDays,
       config.store.flushDebounceMs,
     );
+    this.loop = new PollingLoop({
+      intervalMs: config.alpha.apiPollInterval * 1000,
+      run: () => this.poll(),
+      onError: (err) => {
+        this.telemetry.error(err);
+        log.error({ err }, "poll error");
+      },
+    });
   }
 
   async start(): Promise<void> {
     await this.store.load();
     this.initialized = this.store.size > 0;
-    this.running = true;
-    await this.poll();
-    this.scheduleNext();
+    await this.loop.start();
   }
 
   async stop(): Promise<void> {
-    this.running = false;
-    if (this.timer) {
-      clearTimeout(this.timer);
-      this.timer = null;
-    }
+    this.loop.stop();
     await this.store.close();
   }
 
-  private scheduleNext(): void {
-    if (!this.running) return;
-    this.timer = setTimeout(async () => {
-      try {
-        await this.poll();
-      } catch (err) {
-        log.error({ err }, "poll error");
-      }
-      this.scheduleNext();
-    }, config.alpha.apiPollInterval * 1000);
-  }
-
   private async fetchTokenList(): Promise<AlphaTokenApiItem[]> {
-    const pool = getPool(ORIGIN);
+    const pool = getPool(BINANCE_WEB_ORIGIN);
     const { statusCode, body } = await pool.request({
       path: PATH,
       method: "GET",
       headers: {
         accept: "application/json",
-        "user-agent": "BinanceMonitor/1.0",
+        "user-agent": BINANCE_MONITOR_USER_AGENT,
       },
     });
 
@@ -85,76 +139,92 @@ export class AlphaApiMonitor implements Monitor {
 
   private async poll(): Promise<void> {
     log.debug("polling alpha token list");
+    this.telemetry.count("polls");
     const tokens = await this.fetchTokenList();
     log.info({ count: tokens.length }, "fetched alpha tokens");
 
-    const events: Array<{ type: string; token: AlphaTokenApiItem }> = [];
+    const pending: PendingAlphaEvent[] = [];
+    const seedOnly: AlphaTokenApiItem[] = [];
+    const now = Date.now();
 
     for (const token of tokens) {
+      this.telemetry.count("seen");
       const prev = this.store.get(token.alphaId);
 
       if (!prev) {
-        events.push({ type: "new_token", token });
+        if (!this.initialized && token.listingTime < now - INITIAL_CATCH_UP_WINDOW_MS) {
+          seedOnly.push(token);
+          this.telemetry.count("seeded");
+          continue;
+        }
+
+        const types: AlphaEventType[] = ["new_token"];
+        if (token.onlineAirdrop) {
+          types.push("airdrop_live");
+        }
+        if (token.onlineTge) {
+          types.push("tge_live");
+        }
+        pending.push({ token, types: dedupeAlphaEventTypes(types) });
       } else {
+        const types: AlphaEventType[] = [];
         if (!prev.onlineAirdrop && token.onlineAirdrop) {
-          events.push({ type: "airdrop_live", token });
+          types.push("airdrop_live");
         }
         if (!prev.onlineTge && token.onlineTge) {
-          events.push({ type: "tge_live", token });
+          types.push("tge_live");
+        }
+        if (types.length > 0) {
+          pending.push({ token, types });
         }
       }
     }
 
-    if (!this.initialized) {
-      for (const token of tokens) {
-        this.updateSnapshot(token);
-      }
-      log.info(
-        { baseline: tokens.length },
-        "baseline established, skipping initial notifications",
-      );
-      this.initialized = true;
-      reportAlive(this.name);
-      return;
+    for (const token of seedOnly) {
+      this.updateSnapshot(token);
     }
 
-    const failedTokens = new Set<string>();
+    if (pending.length > 0) {
+      const message = applyNotificationPolicy(formatAlphaNotification(pending), {
+        kind: "alpha",
+        mode: pending.length > 1 ? "batch" : "single",
+        alphaTypes: pending.flatMap((event) => event.types),
+        profile: config.notification.profile,
+      });
 
-    for (const event of events) {
-      const { type, token } = event;
-      log.info({ type, symbol: token.symbol, alphaId: token.alphaId }, type);
+      log.info(
+        {
+          count: pending.length,
+          firstSymbol: pending[0]!.token.symbol,
+          firstTypes: pending[0]!.types,
+        },
+        pending.length === 1 ? "alpha update" : "alpha update batch",
+      );
 
       try {
-        await this.dispatcher.broadcast({
-          title: alphaEventTitle(type, token.symbol),
-          body: alphaEventBody(
-            token.name,
-            token.symbol,
-            token.chainId,
-            token.price,
-            token.marketCap,
-          ),
-          group: config.alpha.group,
-          level: config.bark.defaultLevel,
-          sound: config.bark.defaultSound,
-        });
+        await this.dispatcher.broadcast(message);
+        for (const { token } of pending) {
+          this.updateSnapshot(token);
+        }
+        this.telemetry.count("sent", pending.length);
       } catch (err) {
-        failedTokens.add(token.alphaId);
+        this.telemetry.error(err, pending.length);
         log.error(
-          { err, type, symbol: token.symbol },
+          { err, count: pending.length },
           "all channels failed, will retry next poll",
         );
       }
     }
 
-    // Update snapshots: skip tokens whose notifications failed so changes are re-detected
-    for (const token of tokens) {
-      if (!failedTokens.has(token.alphaId)) {
-        this.updateSnapshot(token);
-      }
+    if (!this.initialized) {
+      log.info(
+        { baseline: tokens.length },
+        "baseline established, skipping initial notifications",
+      );
+      this.initialized = true;
     }
 
-    reportAlive(this.name);
+    this.telemetry.alive();
   }
 
   private updateSnapshot(token: AlphaTokenApiItem): void {

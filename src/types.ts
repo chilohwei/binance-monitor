@@ -5,6 +5,7 @@ export interface NotifyMessage {
   url?: string;
   level?: "active" | "timeSensitive" | "passive" | "critical";
   sound?: string;
+  call?: number;
 }
 
 export interface Notifier {
@@ -37,14 +38,4 @@ export interface AlphaTokenApiItem {
   price: string;
   marketCap: string;
   volume24h: string | null;
-}
-
-export interface AnnouncementData {
-  catalogId: number;
-  catalogName: string;
-  publishDate: number;
-  title: string;
-  body: string;
-  disclaimer: string;
-  code?: string;
 }

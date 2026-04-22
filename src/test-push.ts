@@ -3,6 +3,11 @@ import type { NotifyMessage } from "./types.js";
 import { BarkNotifier } from "./notifiers/bark.js";
 import { TelegramNotifier } from "./notifiers/telegram.js";
 import { NotifyDispatcher } from "./notifiers/dispatcher.js";
+import { buildAnnouncementUrl } from "./domain/binance.js";
+import {
+  applyNotificationPolicy,
+  type NotificationPolicyInput,
+} from "./utils/notification-policy.js";
 import { closeAllPools } from "./utils/http.js";
 import { logger } from "./utils/logger.js";
 import {
@@ -13,38 +18,53 @@ import {
 
 const log = logger.child({ module: "test-push" });
 
-const SCENARIOS: Record<string, NotifyMessage> = {
+type Scenario = {
+  message: NotifyMessage;
+  policy: NotificationPolicyInput;
+};
+
+const SCENARIOS: Record<string, Scenario> = {
   announcement: {
-    title:
-      "[New Listing] Binance Futures Will Launch USDⓈ-Margined PRLUSDT Perpetual Contract (2026-04-01)",
-    body: announcementBody(
-      "Binance Futures Will Launch USDⓈ-Margined PRLUSDT Perpetual Contract (2026-04-01)",
-    ),
-    group: config.announcement.group,
-    url: "https://www.binance.com/en/support/announcement/detail/0116dd83010043bd95c37626e2277bbe",
-    level: config.bark.defaultLevel,
-    sound: config.bark.defaultSound,
+    message: {
+      title:
+        "[New Listing] Binance Futures Will Launch USDⓈ-Margined PRLUSDT Perpetual Contract (2026-04-01)",
+      body: announcementBody(
+        "Binance Futures Will Launch USDⓈ-Margined PRLUSDT Perpetual Contract (2026-04-01)",
+      ),
+      group: config.announcement.group,
+      url: buildAnnouncementUrl("0116dd83010043bd95c37626e2277bbe"),
+    },
+    policy: { kind: "announcement", mode: "single" },
   },
   alpha: {
-    title: alphaEventTitle("new_token", "CHECK"),
-    body: alphaEventBody("Checkmate", "CHECK", "8453 (Base)", "0.0541", "17846050"),
-    group: config.alpha.group,
-    level: config.bark.defaultLevel,
-    sound: config.bark.defaultSound,
+    message: {
+      title: alphaEventTitle("new_token", "CHECK"),
+      body: alphaEventBody(
+        "Checkmate",
+        "CHECK",
+        "8453 (Base)",
+        "0.0541",
+        "17846050",
+      ),
+      group: config.alpha.group,
+    },
+    policy: { kind: "alpha", mode: "single", alphaTypes: ["new_token"] },
   },
   airdrop: {
-    title: alphaEventTitle("airdrop_live", "EDGE"),
-    body: alphaEventBody("edgeX", "EDGE", "56 (BSC)", "0.686", "240081507"),
-    group: config.alpha.group,
-    level: config.bark.defaultLevel,
-    sound: config.bark.defaultSound,
+    message: {
+      title: alphaEventTitle("airdrop_live", "EDGE"),
+      body: alphaEventBody("edgeX", "EDGE", "56 (BSC)", "0.686", "240081507"),
+      group: config.alpha.group,
+    },
+    policy: { kind: "alpha", mode: "single", alphaTypes: ["airdrop_live"] },
   },
   tge: {
-    title: alphaEventTitle("tge_live", "KAT"),
-    body: alphaEventBody("Katana", "KAT", "56 (BSC)", "0", "0"),
-    group: config.alpha.group,
-    level: config.bark.defaultLevel,
-    sound: config.bark.defaultSound,
+    message: {
+      title: alphaEventTitle("tge_live", "KAT"),
+      body: alphaEventBody("Katana", "KAT", "56 (BSC)", "0", "0"),
+      group: config.alpha.group,
+    },
+    policy: { kind: "alpha", mode: "single", alphaTypes: ["tge_live"] },
   },
 };
 
@@ -68,7 +88,11 @@ async function main() {
   ]);
 
   for (const key of keys) {
-    const msg = SCENARIOS[key]!;
+    const scenario = SCENARIOS[key]!;
+    const msg = applyNotificationPolicy(scenario.message, {
+      ...scenario.policy,
+      profile: config.notification.profile,
+    });
     log.info({ scenario: key, title: msg.title }, "sending");
     await dispatcher.broadcast(msg);
     if (keys.length > 1) {
