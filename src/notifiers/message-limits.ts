@@ -88,8 +88,13 @@ export function clampBarkMessage(message: NotifyMessage): NotifyMessage {
     ...message,
     title: truncateText(message.title, BARK_TITLE_LIMIT, "..."),
     body: truncateText(message.body, BARK_BODY_LIMIT, BARK_TRUNCATED_SUFFIX),
-    group: truncateText(message.group, BARK_GROUP_LIMIT, "..."),
+    group: normalizeBarkGroup(message.group),
   };
+}
+
+export function normalizeBarkGroup(group: string): string {
+  const normalized = group.trim() || "Binance Monitor";
+  return truncateText(normalized, BARK_GROUP_LIMIT, "...");
 }
 
 function escapeHtml(text: string): string {

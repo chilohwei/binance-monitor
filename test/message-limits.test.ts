@@ -8,6 +8,7 @@ import {
   TELEGRAM_TEXT_LIMIT,
   clampBarkMessage,
   formatTelegramMessages,
+  normalizeBarkGroup,
 } from "../src/notifiers/message-limits.js";
 
 describe("message limits", () => {
@@ -26,6 +27,12 @@ describe("message limits", () => {
     assert.ok(safe.body.length <= BARK_BODY_LIMIT);
     assert.ok(safe.group.length <= BARK_GROUP_LIMIT);
     assert.match(safe.body, /\(truncated\)$/);
+  });
+
+  it("normalizes Bark groups for notification grouping", () => {
+    assert.equal(normalizeBarkGroup("  Alpha监控  "), "Alpha监控");
+    assert.equal(normalizeBarkGroup("   "), "Binance Monitor");
+    assert.ok(normalizeBarkGroup("G".repeat(120)).length <= BARK_GROUP_LIMIT);
   });
 
   it("keeps short Telegram messages in one chunk", () => {

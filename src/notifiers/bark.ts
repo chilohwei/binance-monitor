@@ -47,8 +47,12 @@ async function pushToDevice(
   const payload: Record<string, unknown> = {
     device_key: key,
     title: msg.title,
+    subtitle: msg.group,
     body: msg.body,
     group: msg.group,
+    ext_params: {
+      group: msg.group,
+    },
     icon,
     sound,
     level,

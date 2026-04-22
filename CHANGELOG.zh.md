@@ -1,3 +1,12 @@
+## 1.0.6 - 2026-04-22
+
+### 修复
+- Bark：同时通过 `group` 与 `ext_params.group` 传递分组，并将分组写入 `subtitle` 展示，提升不同自建 `bark-server` 版本下的分组兼容性与可见性
+- 更新 GitHub Actions 依赖到当前 release 版本，避免 Node 20 action runtime 弃用预警
+
+### 变更
+- README 补充 Bark 分组说明，明确 `ANNOUNCEMENT_GROUP` / `ALPHA_GROUP` 同时用于 Bark 分组与通知批量合并
+
 ## 1.0.5 - 2026-04-22
 
 ### 修复

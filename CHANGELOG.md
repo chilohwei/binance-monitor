@@ -1,3 +1,12 @@
+## 1.0.6 - 2026-04-22
+
+### Fixed
+- Send Bark notification groups through both `group` and `ext_params.group`, and show the group as `subtitle` so Bark grouping remains visible and compatible across self-hosted server versions
+- Update GitHub Actions dependencies to current releases to avoid Node 20 action runtime deprecation warnings
+
+### Changed
+- Document Bark grouping behavior and clarify that `ANNOUNCEMENT_GROUP` / `ALPHA_GROUP` drive Bark grouping and notification batching
+
 ## 1.0.5 - 2026-04-22
 
 ### Fixed

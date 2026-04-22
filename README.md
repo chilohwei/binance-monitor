@@ -34,8 +34,8 @@ docker compose logs -f
 cp .env.example .env
 # 编辑 .env 填入真实密钥
 
-IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.5 docker compose pull
-IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.5 docker compose up -d
+IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.6 docker compose pull
+IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.6 docker compose up -d
 docker compose logs -f
 ```
 
@@ -55,8 +55,8 @@ echo "<github_pat>" | docker login ghcr.io -u chilohwei --password-stdin
 cp .env.example .env
 # 编辑 .env
 
-IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.5 docker compose pull
-IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.5 docker compose up -d
+IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.6 docker compose pull
+IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.6 docker compose up -d
 ```
 
 健康检查端口默认只绑定 `127.0.0.1`，NPM 通过 Docker 网络访问 `http://binance-monitor:<HEALTH_PORT>` 即可。
@@ -64,6 +64,8 @@ IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.5 docker compose up -
 `/health` 会同时返回各 monitor 的最近活跃时间、当前状态、命中/过滤/去重/发送计数，以及 Bark / Telegram 的成功失败统计，方便快速判断是“源头没消息”、"规则过滤掉了"，还是“通知通道出了问题”。
 
 **Bark 地址（重要）**：若 `BARK_SERVER` 指向经 **Cloudflare** 的公网域名，服务端 `POST /push` 可能被 **人机挑战** 拦截（日志里表现为 `403` / `Cloudflare blocked`），Telegram 仍可能正常。与自建 `bark-server` **同机且同在 `edge-proxy`** 时，请在 `.env` 中使用 **容器内网地址**，例如 `http://bark-server:8080`（端口以 bark 容器监听为准，可用 `docker compose exec binance-monitor node -e "fetch('http://bark-server:8080/ping').then(r=>r.text()).then(console.log)"` 自测）。手机 Bark App 仍可继续使用 HTTPS 域名。
+
+**Bark 分组**：`ANNOUNCEMENT_GROUP` 与 `ALPHA_GROUP` 会作为 Bark API V2 的 `group` 发送，用于 iOS 通知分组；同时会写入 `ext_params.group` 兼容不同版本的自建 `bark-server`，并作为 Bark `subtitle` 展示，方便在通知列表里直接区分“币安公告”和“Alpha监控”。如果你想让多个来源合并到同一组，设置相同的 group 值即可；想分开展示则使用不同值。
 
 ## 本地开发
 
@@ -101,13 +103,13 @@ npm test        # 运行测试
 | `TG_MAX_RETRIES` | 否 | `3` | 最大重试次数 |
 | `ANNOUNCEMENT_CATALOG_IDS` | 否 | `48` | 公告分类 ID |
 | `ANNOUNCEMENT_KEYWORDS` | 否 | `Contract,Futures,合约,期货` | 关键词过滤 |
-| `ANNOUNCEMENT_GROUP` | 否 | `币安公告` | 推送分组 |
+| `ANNOUNCEMENT_GROUP` | 否 | `币安公告` | 公告推送分组；同时作为 Bark `group` / `subtitle` |
 | `ANNOUNCEMENT_POLL_ENABLED` | 否 | `true` | 启用 REST 轮询备份 |
 | `ANNOUNCEMENT_POLL_INTERVAL_MS` | 否 | `30000` | 轮询间隔 (ms) |
 | `ANNOUNCEMENT_POLL_PAGE_SIZE` | 否 | `50` | 每次拉取条数 |
 | `ANNOUNCEMENT_POLL_MAX_PAGES` | 否 | `5` | 单次轮询最多翻页次数 |
 | `ALPHA_API_POLL_INTERVAL` | 否 | `10` | Alpha 轮询间隔 (秒) |
-| `ALPHA_GROUP` | 否 | `Alpha监控` | 推送分组 |
+| `ALPHA_GROUP` | 否 | `Alpha监控` | Alpha 推送分组；同时作为 Bark `group` / `subtitle` |
 | `NOTIFICATION_PROFILE` | 否 | `balanced` | 通知强度档位：`quiet` / `balanced` / `aggressive` |
 | `NOTIFICATION_BATCH_WINDOW_MS` | 否 | `1000` | 同组消息合并窗口，`0` 表示关闭 |
 | `WS_PING_INTERVAL_MS` | 否 | `25000` | WS 心跳间隔 |
@@ -148,7 +150,7 @@ npm test        # 运行测试
 
 - **平台**: `linux/amd64`, `linux/arm64`
 - **镜像**: `ghcr.io/<owner>/binance-monitor`
-- **标签**: `main`, `1.0.5`, `1.0`, `<commit-sha>`
+- **标签**: `main`, `1.0.6`, `1.0`, `<commit-sha>`
 - **可见性**：镜像在 GHCR 侧保持 **私有 Package**；部署机拉取需已登录且具备 `read:packages`
 - PR 仅构建不推送
 
