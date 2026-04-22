@@ -1,3 +1,9 @@
+## 1.0.5 - 2026-04-22
+
+### 修复
+- Bark：发送前裁剪超长 payload，避免大批量公告摘要因 `PayloadTooLarge` 整体投递失败
+- Telegram：将超长 HTML 消息自动拆成续传分片，避免批量公告因 `message is too long` 整体发送失败
+
 ## 1.0.4 - 2026-04-22
 
 ### 修复

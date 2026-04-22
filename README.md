@@ -34,8 +34,8 @@ docker compose logs -f
 cp .env.example .env
 # 编辑 .env 填入真实密钥
 
-IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.4 docker compose pull
-IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.4 docker compose up -d
+IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.5 docker compose pull
+IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.5 docker compose up -d
 docker compose logs -f
 ```
 
@@ -55,8 +55,8 @@ echo "<github_pat>" | docker login ghcr.io -u chilohwei --password-stdin
 cp .env.example .env
 # 编辑 .env
 
-IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.4 docker compose pull
-IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.4 docker compose up -d
+IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.5 docker compose pull
+IMAGE_NAME=ghcr.io/chilohwei/binance-monitor IMAGE_TAG=1.0.5 docker compose up -d
 ```
 
 健康检查端口默认只绑定 `127.0.0.1`，NPM 通过 Docker 网络访问 `http://binance-monitor:<HEALTH_PORT>` 即可。
@@ -148,7 +148,7 @@ npm test        # 运行测试
 
 - **平台**: `linux/amd64`, `linux/arm64`
 - **镜像**: `ghcr.io/<owner>/binance-monitor`
-- **标签**: `main`, `1.0.4`, `1.0`, `<commit-sha>`
+- **标签**: `main`, `1.0.5`, `1.0`, `<commit-sha>`
 - **可见性**：镜像在 GHCR 侧保持 **私有 Package**；部署机拉取需已登录且具备 `read:packages`
 - PR 仅构建不推送
 

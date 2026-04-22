@@ -1,6 +1,6 @@
 services:
   binance-monitor:
-    image: ${IMAGE_NAME:-ghcr.io/chilohwei/binance-monitor}:${IMAGE_TAG:-1.0.4}
+    image: ${IMAGE_NAME:-ghcr.io/chilohwei/binance-monitor}:${IMAGE_TAG:-1.0.5}
     build:
       context: .
     container_name: ${CONTAINER_NAME:-binance-monitor}

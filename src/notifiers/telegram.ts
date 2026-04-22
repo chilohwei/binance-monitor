@@ -3,24 +3,9 @@ import type { Notifier, NotifyMessage } from "../types.js";
 import { getPool } from "../utils/http.js";
 import { sleep } from "../utils/sleep.js";
 import { createChildLogger } from "../utils/logger.js";
+import { formatTelegramMessages } from "./message-limits.js";
 
 const log = createChildLogger("telegram");
-
-function formatHtml(msg: NotifyMessage): string {
-  let text = `<b>${escapeHtml(msg.title)}</b>\n\n${escapeHtml(msg.body)}`;
-  if (msg.url) {
-    text += `\n\n<a href="${escapeHtml(msg.url)}">${escapeHtml(msg.url)}</a>`;
-  }
-  return text;
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 async function sendMessage(text: string, attempt = 0): Promise<void> {
   const pool = getPool("https://api.telegram.org");
@@ -79,7 +64,8 @@ export class TelegramNotifier implements Notifier {
   readonly name = "telegram";
 
   async send(message: NotifyMessage): Promise<void> {
-    const html = formatHtml(message);
-    await sendMessage(html);
+    for (const html of formatTelegramMessages(message)) {
+      await sendMessage(html);
+    }
   }
 }

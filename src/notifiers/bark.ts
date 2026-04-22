@@ -4,6 +4,7 @@ import { getPool } from "../utils/http.js";
 import { sleep } from "../utils/sleep.js";
 import { createChildLogger } from "../utils/logger.js";
 import { recordNotifierResult } from "../health.js";
+import { clampBarkMessage } from "./message-limits.js";
 
 const log = createChildLogger("bark");
 
@@ -104,8 +105,9 @@ export class BarkNotifier implements Notifier {
   readonly name = "bark";
 
   async send(message: NotifyMessage): Promise<void> {
+    const safeMessage = clampBarkMessage(message);
     const results = await Promise.allSettled(
-      config.bark.keys.map((key) => pushToDevice(key, message)),
+      config.bark.keys.map((key) => pushToDevice(key, safeMessage)),
     );
 
     const failures = results.filter((r) => r.status === "rejected");

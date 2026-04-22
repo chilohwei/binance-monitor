@@ -1,3 +1,9 @@
+## 1.0.5 - 2026-04-22
+
+### Fixed
+- Truncate oversized Bark payloads before send so large announcement digests no longer fail with `PayloadTooLarge`
+- Split oversized Telegram HTML messages into continuation chunks so batched announcements stay deliverable instead of failing with `message is too long`
+
 ## 1.0.4 - 2026-04-22
 
 ### Fixed
